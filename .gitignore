@@ -1,0 +1,9 @@
+# This is a library gem, not an app: consumers resolve their own
+# dependency versions, so the lockfile from local development isn't
+# committed.
+/Gemfile.lock
+/spec/examples.txt
+/.bundle
+/pkg
+# `gem build` (as opposed to `rake build`) drops the built .gem directly here, not under /pkg.
+*.gem
