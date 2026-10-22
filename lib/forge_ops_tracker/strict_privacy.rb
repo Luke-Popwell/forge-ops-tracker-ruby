@@ -18,6 +18,11 @@ module ForgeOpsTracker
     # ASCII "word" characters; boundaries are defined against these, the same in every SDK, so
     # Ruby's own idea of a word never changes the result.
     WORD = "A-Za-z0-9_".freeze
+    EMAIL = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
+    # A quoted value (KeyError: 'Jane Doe') is data, not the shape of the error. Single quotes only open
+    # and close at a word boundary, so a contraction (Couldn't) or the `email' style never starts one.
+    DOUBLE_QUOTED = /"[^"\r\n]*"/
+    SINGLE_QUOTED = /(?<![#{WORD}])'[^'\r\n]*'(?![#{WORD}])/
     HEX_OBJECT_ID = /0x[0-9a-fA-F]{4,}/
     UUID = /(?<![#{WORD}])[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(?![#{WORD}])/
     NUMBER = /(?<![#{WORD}])[0-9]+(?![#{WORD}])/
@@ -34,9 +39,11 @@ module ForgeOpsTracker
 
     module_function
 
-    # The message with hex object ids, UUIDs and standalone numbers replaced, in that order.
+    # The message with emails, quoted values, hex object ids, UUIDs and standalone numbers replaced, in
+    # that order (sdks/STRICT_PRIVACY.md).
     def normalize_message(message)
-      message.to_s.gsub(HEX_OBJECT_ID, "0x").gsub(UUID, "<uuid>").gsub(NUMBER, "<n>")
+      message.to_s.gsub(EMAIL, "<email>").gsub(DOUBLE_QUOTED, "<str>").gsub(SINGLE_QUOTED, "<str>")
+        .gsub(HEX_OBJECT_ID, "0x").gsub(UUID, "<uuid>").gsub(NUMBER, "<n>")
     end
 
     # Lets ForgeOps group errors without ever seeing their message: the first 32 hex characters of
