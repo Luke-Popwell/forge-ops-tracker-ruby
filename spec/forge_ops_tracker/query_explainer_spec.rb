@@ -178,6 +178,14 @@ RSpec.describe ForgeOpsTracker::QueryExplainer do
       expect(jobs).to be_empty
     end
 
+    it "does nothing under strict privacy, even with explain_slow_queries on" do
+      configuration.strict_privacy = true
+      jobs = queued_jobs
+
+      expect(explainer.consider(payload, duration_ms: 5_000)).to be false
+      expect(jobs).to be_empty
+    end
+
     it "only takes queries at or above explain_threshold_ms" do
       jobs = queued_jobs
 

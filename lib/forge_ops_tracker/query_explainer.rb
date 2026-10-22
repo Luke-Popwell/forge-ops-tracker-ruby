@@ -98,7 +98,8 @@ module ForgeOpsTracker
     # checks first, so a fast query costs one comparison. Returns true only when an EXPLAIN was
     # queued; never raises.
     def consider(payload, duration_ms:)
-      return false unless configuration.explain_slow_queries
+      # Strict privacy sends no SQL at all, masked or not (sdks/STRICT_PRIVACY.md).
+      return false unless configuration.explain_slow_queries && !configuration.strict_privacy
       return false unless duration_ms && duration_ms >= configuration.explain_threshold_ms.to_f
 
       connection = payload[:connection]
