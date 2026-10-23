@@ -30,3 +30,19 @@ RSpec.describe ForgeOpsTracker::PiiScrubber do
     end
   end
 end
+
+RSpec.describe ForgeOpsTracker::PiiScrubber, "card numbers and IBANs" do
+  vectors = JSON.parse(File.read(File.expand_path("../fixtures/pii_scrubbing_vectors.json", __dir__), encoding: "UTF-8"))
+
+  vectors["strings"].each do |vector|
+    it "scrubs #{vector['input'].inspect} as the server does" do
+      expect(described_class.scrub(vector["input"])).to eq(vector["scrubbed"])
+    end
+  end
+
+  vectors["keys"].each do |vector|
+    it "#{vector['redacted'] ? 'redacts' : 'keeps'} a #{vector['key']} field" do
+      expect(described_class.scrub({ vector["key"] => "x" })[vector["key"]] == described_class::REDACTED).to eq(vector["redacted"])
+    end
+  end
+end
