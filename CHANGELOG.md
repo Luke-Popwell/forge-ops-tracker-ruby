@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.22.0 (2026-10-28)
+
+- `config.trace_ignore_paths`: requests whose path starts with one of these prefixes are never traced, however
+  slow, for health checks or anything else not worth a trace.
+
 ## 0.21.0 (2026-10-23)
 
 - PII scrubbing catches card numbers however they're grouped (bare, 4-4-4-4, Amex's 4-6-5, or next to a

@@ -34,6 +34,7 @@ module ForgeOpsTracker
 
       def call(env)
         return app.call(env) unless configuration.track_tracing && configuration.enabled?
+        return app.call(env) if ignored_path?(env)
 
         state = RequestState.for(env)
         buffer = SpanBuffer.new(trace_id: state.trace_id, parent_span_id: state.parent_span_id)
@@ -48,6 +49,11 @@ module ForgeOpsTracker
 
       private
         attr_reader :app, :configuration
+
+        def ignored_path?(env)
+          path = env["PATH_INFO"].to_s
+          Array(configuration.trace_ignore_paths).any? { |prefix| path.start_with?(prefix) }
+        end
 
         def send_trace?(buffer, state)
           return true if buffer.slow?(configuration.trace_capture_threshold_ms)

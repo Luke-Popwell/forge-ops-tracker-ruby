@@ -16,7 +16,7 @@ module ForgeOpsTracker
     attr_accessor :track_failures, :failure_event_flush_interval
     attr_accessor :metric_flush_interval, :infrastructure_metric_flush_interval
     attr_accessor :gauge_poll_interval
-    attr_accessor :track_tracing, :trace_capture_threshold_ms
+    attr_accessor :track_tracing, :trace_capture_threshold_ms, :trace_ignore_paths
     attr_accessor :explain_slow_queries, :explain_threshold_ms
     attr_accessor :propagate_traces, :trace_propagation_targets
     attr_accessor :detect_changes, :track_env_var_names
@@ -129,6 +129,10 @@ module ForgeOpsTracker
       # PerformanceSample-derived threshold elsewhere in this gem: those describe a trend across
       # many requests, this describes a single one being outright slow.
       @trace_capture_threshold_ms = 1_000
+      # Requests whose path starts with one of these are never traced at all. For an app that
+      # reports to itself (ForgeOps on ForgeOps), its own ingestion endpoints: storing a slow trace
+      # is a slow request, whose trace would be sent back to be stored, and so on.
+      @trace_ignore_paths = []
       # Opt-in: for a SELECT on PostgreSQL that took at least explain_threshold_ms, ask Postgres for
       # its plan (plain EXPLAIN, never EXPLAIN ANALYZE, so the query is never run again) and send
       # it, masked, so ForgeOps can show why the query was slow. Off by default because it runs one

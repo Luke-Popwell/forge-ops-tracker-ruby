@@ -446,6 +446,7 @@ A fast, successful request never sends anything.
 ForgeOpsTracker.configure do |config|
   config.track_tracing = false             # opt out of recording spans entirely
   config.trace_capture_threshold_ms = 500  # default 1000
+  config.trace_ignore_paths = [ "/health" ] # never trace requests under these path prefixes
 end
 ```
 

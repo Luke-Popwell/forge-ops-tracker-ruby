@@ -66,6 +66,21 @@ RSpec.describe ForgeOpsTracker::Middleware::SpanTracing do
     expect(span_queue).to have_received(:push).with(trace_id: kind_of(String), spans: kind_of(Array))
   end
 
+  it "doesn't trace a request under one of trace_ignore_paths, however slow" do
+    configuration.trace_ignore_paths = [ "/api/" ]
+    seen_during_call = :unset
+    app = lambda do |_env|
+      seen_during_call = Thread.current[:forge_ops_tracker_spans]
+      [ 200, {}, [ "ok" ] ]
+    end
+    middleware = described_class.new(app, configuration: configuration)
+
+    middleware.call("PATH_INFO" => "/api/v1/spans")
+
+    expect(seen_during_call).to be_nil
+    expect(span_queue).not_to have_received(:push)
+  end
+
   it "never sends the trace when the root span's duration is under the threshold" do
     app = lambda do |_env|
       Thread.current[:forge_ops_tracker_spans].record(
