@@ -31,6 +31,14 @@ RSpec.describe ForgeOpsTracker::StrictPrivacy do
     end
   end
 
+  describe ".hashed_user_id" do
+    vectors.fetch("user_id").each do |vector|
+      it "hashes user id #{vector["id"].inspect} the way the server does" do
+        expect(described_class.hashed_user_id(vector["id"], vector["key"])).to eq(vector["hashed"])
+      end
+    end
+  end
+
   describe ".span_name" do
     vectors.fetch("span_name").each do |vector|
       it "names #{vector["name"].inspect} as #{vector["strict"].inspect}" do
@@ -96,6 +104,14 @@ RSpec.describe ForgeOpsTracker::StrictPrivacy do
 
       expect(configuration.strict_privacy).to be true
       expect(configuration.privacy_allowed_fields).to eq(%w[error_code feature])
+    end
+
+    it "reads FORGE_OPS_PRIVACY_USER_KEY from the environment, treating empty as unset" do
+      stub_const("ENV", ENV.to_h.merge("FORGE_OPS_PRIVACY_USER_KEY" => "customer-secret"))
+      expect(ForgeOpsTracker::Configuration.new.privacy_user_key).to eq("customer-secret")
+
+      stub_const("ENV", ENV.to_h.merge("FORGE_OPS_PRIVACY_USER_KEY" => ""))
+      expect(ForgeOpsTracker::Configuration.new.privacy_user_key).to be_nil
     end
 
     it "lets an explicit setting win over the environment" do
@@ -175,7 +191,7 @@ RSpec.describe ForgeOpsTracker::StrictPrivacy do
       expect(payload).not_to include(:breadcrumbs, :endpoint, :sql_statement)
       expect(payload[:context]).to eq("error_code" => "E42", "tier" => 3)
       expect(payload).not_to have_key(:tags)
-      expect(payload[:user]).to eq(id: "7")
+      expect(payload).not_to have_key(:user)
       expect(payload[:backtrace]).to eq([ { file: source_file.path, line: 10, method: "show", in_app: true } ])
       expect(payload[:sql_objects]).to eq(operation: "SELECT", procedures: [], relations: [ "patients" ])
       expect(payload).to include(
@@ -195,7 +211,23 @@ RSpec.describe ForgeOpsTracker::StrictPrivacy do
 
     it "leaves out the user entirely when it has no id" do
       configuration.strict_privacy = true
+      configuration.privacy_user_key = "customer-secret"
       arguments[:user] = { email: "jane@example.com" }
+
+      expect(build).not_to have_key(:user)
+    end
+
+    it "sends only a keyed hash of the user's id when a user key is set" do
+      configuration.strict_privacy = true
+      configuration.privacy_user_key = "customer-secret"
+
+      expect(build[:user]).to eq(id: described_class.hashed_user_id("7", "customer-secret"))
+      expect(build[:user][:id]).to match(/\Ah1:[0-9a-f]{32}\z/)
+    end
+
+    it "sends no user with strict privacy on and an empty user key" do
+      configuration.strict_privacy = true
+      configuration.privacy_user_key = ""
 
       expect(build).not_to have_key(:user)
     end

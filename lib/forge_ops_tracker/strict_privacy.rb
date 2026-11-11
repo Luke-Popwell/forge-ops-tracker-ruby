@@ -1,4 +1,5 @@
 require "digest"
+require "openssl"
 
 module ForgeOpsTracker
   # What Configuration#strict_privacy changes in everything this gem sends, for apps that can't let
@@ -54,23 +55,28 @@ module ForgeOpsTracker
     # always is, rather than converted byte by byte, which would turn every non-ASCII character into
     # replacement characters and hash differently from the same text arriving as UTF-8.
     def message_fingerprint(message)
-      normalized = normalize_message(message)
-      normalized = normalized.dup.force_encoding(Encoding::UTF_8) if normalized.encoding == Encoding::BINARY
-      normalized = normalized.encode(Encoding::UTF_8, invalid: :replace, undef: :replace) unless normalized.encoding == Encoding::UTF_8
-      Digest::SHA256.hexdigest(normalized.scrub)[0, FINGERPRINT_LENGTH]
+      Digest::SHA256.hexdigest(utf8(normalize_message(message)))[0, FINGERPRINT_LENGTH]
+    end
+
+    # The text's UTF-8 bytes, which is what every SDK hashes: plain bytes are relabelled as UTF-8
+    # (converting would replace each non-ASCII byte), anything else is converted.
+    def utf8(text)
+      text = text.dup.force_encoding(Encoding::UTF_8) if text.encoding == Encoding::BINARY
+      text = text.encode(Encoding::UTF_8, invalid: :replace, undef: :replace) unless text.encoding == Encoding::UTF_8
+      text.scrub
     end
 
     # An error event payload (EventBuilder#build's shape, symbol keys) reduced to what strict
     # privacy sends. message is sent as "" alongside message_fingerprint, exactly what the server
     # stores for a strict project.
-    def event(payload, allowed_fields: [])
+    def event(payload, allowed_fields: [], user_key: nil)
       payload.reject { |key, _value| EVENT_FIELDS_DROPPED.include?(key) }.merge(
         message: "",
         message_fingerprint: message_fingerprint(payload[:message]),
         transaction_name: transaction_name(payload[:transaction_name]),
         context: allowed(payload[:context], allowed_fields),
         tags: allowed(payload[:tags], allowed_fields),
-        user: user(payload[:user]),
+        user: user(payload[:user], user_key),
         backtrace: Array(payload[:backtrace]).map { |frame| frame.reject { |key, _value| SOURCE_CONTEXT_FIELDS.include?(key) } }
       ).compact
     end
@@ -167,12 +173,22 @@ module ForgeOpsTracker
       kept unless kept.empty?
     end
 
-    # The user's id, as a string, and nothing else; nil when there's no id.
-    def user(user)
+    # Only a keyed hash of the user's id (hashed_user_id), and only when the app set
+    # Configuration#privacy_user_key; nil otherwise. A raw id can be a record number that identifies
+    # a person, and an unkeyed hash of a small number can be guessed back.
+    def user(user, key = nil)
       return nil unless user.is_a?(Hash)
+      return nil if key.nil? || key.to_s.empty?
 
       id = user[:id] || user["id"]
-      { id: id.to_s } unless id.nil? || id.to_s.strip.empty?
+      { id: hashed_user_id(id, key) } unless id.nil? || id.to_s.strip.empty?
+    end
+
+    # "h1:" and the first 32 lowercase hex characters of HMAC-SHA256 of the id's UTF-8 text, keyed
+    # with the app's own secret, which ForgeOps never sees. The same id hashes the same under one
+    # key, so affected customers can still be counted.
+    def hashed_user_id(id, key)
+      "h1:#{OpenSSL::HMAC.hexdigest("SHA256", utf8(key.to_s), utf8(id.to_s))[0, FINGERPRINT_LENGTH]}"
     end
   end
 end

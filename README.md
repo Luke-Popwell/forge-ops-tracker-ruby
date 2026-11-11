@@ -237,11 +237,15 @@ trace id, and the database tables or procedures involved), never free text that 
 name, an email or a diagnosis:
 
 - No error message. A `message_fingerprint` is sent instead: a one-way hash of the message with
-  its numbers, hex ids and UUIDs taken out, computed in your process, so errors still group
+  its emails, quoted values, numbers, hex ids and UUIDs taken out, computed in your process, so errors still group
   without the message ever leaving it.
 - No breadcrumbs (they aren't recorded at all), no `endpoint`, no SQL statement even with
   `capture_sql_statement` on, and no source context (the source file is never read).
-- The user is sent by `id` only, never `email` or `username`.
+- The user's `email` and `username` are never sent, and neither is the raw `id`. With
+  `privacy_user_key` set, the id is sent as a keyed hash (HMAC-SHA256 with your key, which never
+  leaves your app), so ForgeOps can still count affected customers but can't read the id. Without
+  a key, no user is sent at all. Keep the key the same across servers and deploys, or one customer
+  counts as two.
 - Context and tags only keep the top-level keys you list in `privacy_allowed_fields`, and only
   when the value is a string, number or boolean. Nothing else from them is sent.
 - Failed jobs and outbound calls keep their error class, never their error message.
@@ -256,11 +260,13 @@ name, an email or a diagnosis:
 ForgeOpsTracker.configure do |config|
   config.strict_privacy = true                           # default false
   config.privacy_allowed_fields = %w[error_code feature] # default []
+  config.privacy_user_key = ENV["MY_FORGE_OPS_USER_KEY"]  # default nil: no user sent
 end
 ```
 
-Both can also come from the environment: `FORGE_OPS_STRICT_PRIVACY=true` and
-`FORGE_OPS_PRIVACY_ALLOWED_FIELDS=error_code,feature` (comma separated). A value set in
+All three can also come from the environment: `FORGE_OPS_STRICT_PRIVACY=true`,
+`FORGE_OPS_PRIVACY_ALLOWED_FIELDS=error_code,feature` (comma separated) and
+`FORGE_OPS_PRIVACY_USER_KEY=...`. A value set in
 `configure` wins over the environment.
 
 ForgeOps applies the same rules again on arrival when the project's own Strict privacy setting is

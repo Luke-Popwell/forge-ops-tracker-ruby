@@ -22,6 +22,7 @@ module ForgeOpsTracker
     attr_accessor :detect_changes, :track_env_var_names
     attr_accessor :strict_privacy
     attr_reader :privacy_allowed_fields
+    attr_accessor :privacy_user_key
 
     def initialize
       @dsn = ENV["FORGE_OPS_DSN"]
@@ -165,7 +166,7 @@ module ForgeOpsTracker
       # Off by default. On, nothing this gem sends carries free text that could hold personal or
       # health data: no error message (a message_fingerprint is sent instead, so errors still
       # group), no breadcrumbs, no request path, no SQL statement, no source context, no user email
-      # or username, no job failure message, and outbound HTTP spans named by method and host only.
+      # or username, the user's id only as a keyed hash (privacy_user_key), no job failure message, and outbound HTTP spans named by method and host only.
       # See StrictPrivacy for every rule. FORGE_OPS_STRICT_PRIVACY=true turns it on from the
       # environment; setting it here wins over that.
       @strict_privacy = self.class.env_flag(ENV["FORGE_OPS_STRICT_PRIVACY"])
@@ -174,6 +175,11 @@ module ForgeOpsTracker
       # so nothing from context or tags goes out. FORGE_OPS_PRIVACY_ALLOWED_FIELDS=error_code,feature
       # sets it from the environment.
       self.privacy_allowed_fields = ENV["FORGE_OPS_PRIVACY_ALLOWED_FIELDS"].to_s.split(",")
+      # Strict privacy sends the user's id only as a keyed hash (StrictPrivacy.hashed_user_id) with
+      # this secret, which stays in your app; unset, no user is sent at all. Keep it the same
+      # across deploys and servers, or the same customer counts as two. FORGE_OPS_PRIVACY_USER_KEY
+      # sets it from the environment.
+      @privacy_user_key = ENV["FORGE_OPS_PRIVACY_USER_KEY"].to_s.empty? ? nil : ENV["FORGE_OPS_PRIVACY_USER_KEY"]
     end
 
     # Accepts an Array of names or one comma-separated String; always kept as stripped Strings.

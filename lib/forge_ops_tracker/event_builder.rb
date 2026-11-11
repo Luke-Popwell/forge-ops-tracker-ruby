@@ -63,7 +63,7 @@ module ForgeOpsTracker
       payload = scrub(payload)
       return payload unless configuration.strict_privacy
 
-      StrictPrivacy.event(payload, allowed_fields: configuration.privacy_allowed_fields)
+      StrictPrivacy.event(payload, allowed_fields: configuration.privacy_allowed_fields, user_key: configuration.privacy_user_key)
     end
 
     private
